@@ -2,8 +2,8 @@ const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
 require("dotenv").config();
 
-const token = process.env.DISCORD_TOKEN;
-const channelId = process.env.CHANNEL_ID;
+const TOKEN = process.env.DISCORD_TOKEN;
+const LOG_CHANNEL_ID = process.env.CHANNEL_ID;
 
 const client = new Client({
     intents: [
