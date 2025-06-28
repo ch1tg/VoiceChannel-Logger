@@ -1,19 +1,16 @@
+require("dotenv").config();
 const { Client, GatewayIntentBits, Partials } = require('discord.js');
 
-require("dotenv").config();
-
 const TOKEN = process.env.DISCORD_TOKEN;
-
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.GuildMessages
+        GatewayIntentBits.GuildMembers
     ],
-    partials: [Partials.Channel]
+    partials: [Partials.Channel],
 });
 
 client.once('ready', () => {
@@ -30,11 +27,9 @@ client.on("guildCreate", async (guild) => {
             return;
         }
 
-
         const everyoneRole = guild.roles.everyone;
 
-
-        const channel = await guild.channels.create({
+        await guild.channels.create({
             name: "vc-audit",
             type: 0,
             permissionOverwrites: [
@@ -61,12 +56,16 @@ client.on("guildCreate", async (guild) => {
 });
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    const user = newState.member.user;
     const guild = newState.guild;
+    const member = newState.member || oldState.member;
+    if (!member) return;
+    const user = member.user;
+
     const logChannel = guild.channels.cache.find(
         (ch) => ch.name === "vc-audit" && ch.type === 0
     );
     if (!logChannel) return;
+
     const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
     const oldChannel = oldState.channel;
     const newChannel = newState.channel;
@@ -74,18 +73,20 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     let message = null;
 
     if (!oldChannel && newChannel) {
-        message = `🟢 [${time}] ${user.username} присоединился к каналу **${newChannel.name}**`;
+        message = `🟢 [${time}] ${user.tag} присоединился к каналу **${newChannel.name}**`;
     } else if (oldChannel && !newChannel) {
-        message = `🔴 [${time}] ${user.username} покинул канал **${oldChannel.name}**`;
+        message = `🔴 [${time}] ${user.tag} покинул канал **${oldChannel.name}**`;
     } else if (oldChannel && newChannel && oldChannel.id !== newChannel.id) {
-        message = `🔄 [${time}] ${user.username} перешел из **${oldChannel.name}** в **${newChannel.name}**`;
+        message = `🔄 [${time}] ${user.tag} перешёл из **${oldChannel.name}** в **${newChannel.name}**`;
     }
 
-    if (message) {
-        if (logChannel && logChannel.isTextBased()) {
-            logChannel.send(message).catch(console.error);
+    if (message && logChannel.isTextBased()) {
+        try {
+            await logChannel.send(message);
+            console.log(message);
+        } catch (err) {
+            console.error("❌ Не удалось отправить сообщение в лог-канал:", err);
         }
-        console.log(message);
     }
 });
 
