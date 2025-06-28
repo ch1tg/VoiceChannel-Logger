@@ -3,12 +3,14 @@ const { Client, GatewayIntentBits, Partials } = require('discord.js');
 require("dotenv").config();
 
 const TOKEN = process.env.DISCORD_TOKEN;
-const LOG_CHANNEL_ID = process.env.CHANNEL_ID;
+
 
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages
     ],
     partials: [Partials.Channel]
@@ -18,8 +20,53 @@ client.once('ready', () => {
     console.log(`✅ Бот запущен как ${client.user.tag}`);
 });
 
+client.on("guildCreate", async (guild) => {
+    try {
+        const exists = guild.channels.cache.find(
+            (ch) => ch.name === "vc-audit" && ch.type === 0
+        );
+        if (exists) {
+            console.log(`ℹ️ Канал "vc-audit" уже существует в ${guild.name}`);
+            return;
+        }
+
+
+        const everyoneRole = guild.roles.everyone;
+
+
+        const channel = await guild.channels.create({
+            name: "vc-audit",
+            type: 0,
+            permissionOverwrites: [
+                {
+                    id: everyoneRole.id,
+                    deny: ["ViewChannel"],
+                },
+                {
+                    id: guild.ownerId,
+                    allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"],
+                },
+                {
+                    id: client.user.id,
+                    allow: ["ViewChannel", "SendMessages", "ReadMessageHistory"],
+                },
+            ],
+            reason: "Канал для логирования голосовых событий",
+        });
+
+        console.log(`🟩 Канал "vc-audit" создан в ${guild.name}`);
+    } catch (err) {
+        console.error(`❌ Ошибка при создании канала в ${guild.name}:`, err);
+    }
+});
+
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const user = newState.member.user;
+    const guild = newState.guild;
+    const logChannel = guild.channels.cache.find(
+        (ch) => ch.name === "vc-audit" && ch.type === 0
+    );
+    if (!logChannel) return;
     const time = new Date().toLocaleTimeString('ru-RU', { hour12: false });
     const oldChannel = oldState.channel;
     const newChannel = newState.channel;
@@ -35,7 +82,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 
     if (message) {
-        const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(console.error);
         if (logChannel && logChannel.isTextBased()) {
             logChannel.send(message).catch(console.error);
         }
